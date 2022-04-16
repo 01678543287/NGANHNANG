@@ -1,0 +1,102 @@
+1.
+USE [NGANHANG]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_ChuyenChiNhanh]    Script Date: 08/12/2021 10:49:56 SA ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[SP_ChuyenChiNhanh] @MaNV VARCHAR(50)
+AS
+	DECLARE @LGNAME VARCHAR(50)
+	DECLARE @USERNAME VARCHAR(50)
+SET XACT_ABORT ON
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+BEGIN TRAN
+BEGIN TRY
+		--WITH temp AS (SELECT SUBSTRING(max(MANV),3,4) + 2 AS MANV FROM link1.NGANHANG.dbo.NhanVien)
+		SELECT SUBSTRING(max(MANV),3,4) + 2 AS MANV
+		INTO #temp
+		FROM link1.NGANHANG.dbo.NhanVien
+		--Thêm nhân viên vào chi nhánh chuyển đến
+		INSERT INTO link1.NGANHANG.dbo.NhanVien(MANV, HO,TEN,DIACHI,PHAI,SODT,MACN) 
+			SELECT CONCAT('NV00', temp.MANV), nv.HO,nv.TEN,nv.DIACHI,nv.PHAI,nv.SODT, cn.MACN	 FROM NhanVien AS nv, link1.NGANHANG.dbo.ChiNhanh AS cn, #temp as temp WHERE @MaNV =  nv.MANV AND temp.MANV < 10;
+		
+		INSERT INTO link1.NGANHANG.dbo.NhanVien(MANV, HO,TEN,DIACHI,PHAI,SODT,MACN) 
+			SELECT CONCAT('NV0', temp1.MANV), nv.HO,nv.TEN,nv.DIACHI,nv.PHAI,nv.SODT, cn.MACN	 FROM NhanVien AS nv, link1.NGANHANG.dbo.ChiNhanh AS cn,#temp as temp1 WHERE @MaNV =  nv.MANV AND temp1.MANV >= 10 AND temp1.MANV < 100;
+		
+		INSERT INTO link1.NGANHANG.dbo.NhanVien(MANV, HO,TEN,DIACHI,PHAI,SODT,MACN) 
+			SELECT CONCAT('NV', temp2.MANV), nv.HO,nv.TEN,nv.DIACHI,nv.PHAI,nv.SODT, cn.MACN	 FROM NhanVien AS nv, link1.NGANHANG.dbo.ChiNhanh AS cn, #temp as temp2 WHERE @MaNV =  nv.MANV AND temp2.MANV >= 100 AND temp2.MANV < 1000;
+			
+		-- Xóa nhân viên ở site hiện tại
+		UPDATE NhanVien SET TrangThaiXoa=1 WHERE MANV=@MaNV
+		COMMIT TRAN
+		--Nếu nhân viên có tài khoản thì xóa
+		IF EXISTS (SELECT * FROM sys.sysusers WHERE NAME = @MANV)
+			BEGIN
+				SET @LGNAME = (SELECT SUSER_SNAME(sid) FROM sys.sysusers  WHERE name = @MaNV )
+				SET @USERNAME = @MaNV
+				EXEC SP_DROPUSER @USERNAME;
+				EXEC SP_DROPLOGIN  @LGNAME;
+			END
+  
+END TRY
+
+BEGIN CATCH
+   ROLLBACK TRAN
+   DECLARE @ErrorMessage VARCHAR(2000)
+   SELECT @ErrorMessage = 'Lỗi: ' + ERROR_MESSAGE()
+   RAISERROR(@ErrorMessage, 16, 1)
+END CATCH
+
+2.
+USE [NGANHANG]
+GO
+/****** Object:  StoredProcedure [dbo].[spEmployee]    Script Date: 08/12/2021 11:22:08 SA ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[spEmployee]  
+(  
+	@MaCN nchar(10),
+    @MaNV nchar(10),  
+    @Ho nvarchar(40),
+	@Ten nvarchar(10),
+	@Phai nvarchar(3),
+	@Diachi nvarchar(100),
+	@SoDT nvarchar(15),
+	@TrangThaiXoa int,
+    @ActionType nVARCHAR(25)
+)  
+AS  
+	DECLARE @LGNAME VARCHAR(50)
+	DECLARE @USERNAME VARCHAR(50)
+BEGIN  
+    IF @ActionType = 'SaveData'  
+    BEGIN  
+        IF NOT EXISTS (SELECT * FROM NhanVien WHERE MANV=@MaNV)  
+        BEGIN  
+            INSERT INTO NhanVien (MACN,MANV,HO,TEN,PHAI,DIACHI,SODT,TrangThaiXoa)  
+            VALUES (@MaCN,@MaNV,@Ho,@Ten,@Phai,@Diachi,@SoDT,@TrangThaiXoa)  
+        END  
+        ELSE  
+        BEGIN  
+            UPDATE NhanVien SET MACN=@MaCN, MANV=@MaNV, HO=@Ho, TEN=@Ten, PHAI=@Phai, DIACHI=@Diachi, SODT=@SoDT, TrangThaiXoa=@TrangThaiXoa 
+			WHERE MANV=@MaNV  
+        END  
+    END  
+    IF @ActionType = 'DeleteData'  
+    BEGIN  
+        UPDATE NhanVien SET TrangThaiXoa=1 WHERE MANV=@MaNV  
+		--Nếu nhân viên có tài khoản thì xóa
+		IF EXISTS (SELECT * FROM sys.sysusers WHERE NAME = @MANV)
+			BEGIN
+				SET @LGNAME = (SELECT SUSER_SNAME(sid) FROM sys.sysusers  WHERE name = @MaNV )
+				SET @USERNAME = @MaNV
+				EXEC SP_DROPUSER @USERNAME;
+				EXEC SP_DROPLOGIN  @LGNAME;
+			END
+    END  
+END  

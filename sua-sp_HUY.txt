@@ -1,0 +1,26 @@
+USE [NGANHANG]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_ThongKeTaiKhoanTheoThoiGian]    Script Date: 12/8/2021 10:27:15 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[SP_ThongKeTaiKhoanTheoThoiGian] @MACN nchar(10), @TUNGAY nvarchar(30), @DENNGAY nvarchar(30)
+as
+begin
+	SET @TUNGAY = CONVERT(date, @TUNGAY, 103)
+	SET @DENNGAY = CONVERT(date, @DENNGAY, 103)
+
+	
+		if @MACN = 'BENTHANH' or @MACN = 'TANDINH'
+			begin
+				select TaiKhoan.SOTK, CONCAT( KhachHang.HO, ' ' ,KhachHang.TEN) AS HOTEN, KhachHang.CMND, TaiKhoan.NGAYMOTK from Link3.NGANHANG.dbo.KhachHang as KhachHang, TaiKhoan 
+				where (TaiKhoan.MACN = @MACN) and (TaiKhoan.NGAYMOTK between @TUNGAY and @DENNGAY) and (TaiKhoan.CMND = KhachHang.CMND)
+			end
+		else begin
+			if @MACN = 'TC'
+				select TaiKhoan.SOTK, CONCAT( KhachHang.HO, ' ' ,KhachHang.TEN) AS HOTEN, KhachHang.CMND, TaiKhoan.NGAYMOTK from Link3.NGANHANG.dbo.KhachHang as KhachHang, TaiKhoan 
+				where (TaiKhoan.NGAYMOTK between @TUNGAY + ' 00:00:00' and @DENNGAY + ' 23:59:59' ) and (TaiKhoan.CMND = KhachHang.CMND)
+
+		end
+end
